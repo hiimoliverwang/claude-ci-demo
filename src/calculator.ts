@@ -37,8 +37,9 @@ export function median(values: number[]): number {
   if (values.length === 0) {
     return 0;
   }
-  const mid = Math.floor(values.length / 2);
-  return values.length % 2 === 0
-    ? (values[mid - 1] + values[mid]) / 2
-    : values[mid];
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? (sorted[mid - 1] + sorted[mid]) / 2
+    : sorted[mid];
 }
