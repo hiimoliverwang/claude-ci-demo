@@ -1,0 +1,63 @@
+name: Claude Fix
+
+on:
+  pull_request_review_comment:
+    types: [created]
+
+jobs:
+  claude-fix:
+    # Only run on /claude-fix from repo members
+    if: |
+      contains(github.event.comment.body, '/claude-fix') &&
+      (github.event.comment.author_association == 'OWNER' ||
+       github.event.comment.author_association == 'MEMBER' ||
+       github.event.comment.author_association == 'COLLABORATOR')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: React to comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.reactions.createForPullRequestReviewComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: context.payload.comment.id,
+              content: 'eyes'
+            })
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            A reviewer left this comment on the PR and asked you to fix it:
+
+            "${{ github.event.comment.body }}"
+
+            File: ${{ github.event.comment.path }}
+            Line: ${{ github.event.comment.line }}
+
+            Make the fix, then stage, commit, and push to the PR branch.
+          claude_args: |
+            --allowedTools "Edit,Write,Read,Glob,Grep,Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(git status:*),Bash(git diff:*)"
+            --max-turns 10
+
+      - name: React done
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.reactions.createForPullRequestReviewComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: context.payload.comment.id,
+              content: 'rocket'
+            })
