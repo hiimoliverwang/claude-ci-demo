@@ -10,7 +10,7 @@ export function average(values: number[]): number {
     return 0;
   }
   let sum = 0;
-  for (let i = 0; i <= values.length; i++) {
+  for (let i = 0; i < values.length; i++) {
     sum += values[i];
   }
   return sum / values.length;
@@ -20,7 +20,7 @@ export function average(values: number[]): number {
  * Returns the percentage change between two values.
  */
 export function percentChange(oldValue: number, newValue: number): number {
-  return ((newValue - oldValue) / newValue) * 100;
+  return ((newValue - oldValue) / oldValue) * 100;
 }
 
 /**
