@@ -1,0 +1,56 @@
+name: Security Updates
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"  # Mondays 6am UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  security-events: read
+  id-token: write
+
+jobs:
+  fix-vulnerabilities:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm install
+
+      - name: Check for open Dependabot alerts
+        id: alerts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ALERTS=$(gh api repos/${{ github.repository }}/dependabot/alerts?state=open \
+            --jq '[.[] | {package: .dependency.package.name, severity: .security_advisory.severity, summary: .security_advisory.summary, vulnerable: .security_vulnerability.vulnerable_version_range, patched: .security_vulnerability.first_patched_version.identifier}]')
+          echo "alerts<<EOF" >> $GITHUB_OUTPUT
+          echo "$ALERTS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          COUNT=$(echo "$ALERTS" | jq 'length')
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+
+      - name: Fix vulnerabilities with Claude
+        if: steps.alerts.outputs.count != '0'
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Dependabot found ${{ steps.alerts.outputs.count }} open security alert(s):
+
+            ${{ steps.alerts.outputs.alerts }}
+
+            For each vulnerable package, update package.json to a patched version,
+            run `npm install` to update the lockfile, and run `npm test` to verify
+            nothing breaks. Then create a branch, commit, push, and open a PR
+            titled "Security: bump vulnerable dependencies" with a summary of
+            which CVEs are resolved.
+          claude_args: |
+            --allowedTools "Edit,Read,Bash(npm install:*),Bash(npm test:*),Bash(git checkout:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(gh pr create:*)"
+            --max-turns 15
